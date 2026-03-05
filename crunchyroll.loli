@@ -1,64 +1,58 @@
-[SETTINGS]
-{
-"Name": "Crunchyroll Android V4",
-"Author": "Gemini",
-"SuggestedBots": 50,
-"MaxRecheckModes": 1,
-"Separator": ":",
-"ProxyMode": "On",
-"Queued": false,
-"Status": "FREE",
-"CustomInputs": [],
-"ForceProxy": true,
-"Data": {
-"Type": "Credentials",
-"Format": "USER:PASS"
+BLOCK:HttpRequest
+url = "https://beta-api.crunchyroll.com/auth/v1/token"
+method = POST
+content = "username=<USER>&password=<PASS>&grant_type=password&scope=offline_access"
+contentType = "application/x-www-form-urlencoded"
+customHeaders = {
+("User-Agent", "Crunchyroll/3.0.0 Android/5.1.1 okhttp/3.12.1"),
+("Authorization", "Basic bm9haWhkZXZtXzZpeWcwYThsMHE6")
 }
+ENDBLOCK
+​BLOCK:Parse
+input = @data.SOURCE
+leftDelim = "access_token":""
+rightDelim = """
+recursive = FALSE
+MODE:LR
+VAR:token
+ENDBLOCK
+​BLOCK:HttpRequest
+url = "https://beta-api.crunchyroll.com/accounts/v1/me"
+method = GET
+customHeaders = {
+("Authorization", "Bearer <token>"),
+("User-Agent", "Crunchyroll/3.0.0 Android/5.1.1 okhttp/3.12.1")
 }
-​[SCRIPT]
-​--- INITIALISATION ---
-​Génération d'un Device ID unique pour simuler un vrai téléphone
-​FUNCTION Guid -> VAR "DEVICE"
-FUNCTION ToUppercase "<DEVICE>" -> VAR "DEVICE_ID"
-​--- LOGIN REQUEST ---
-​Requête directe sur l'API Beta (sans les liens Google qui bloquaient tout)
-​REQUEST POST "https://https://www.google.com/search?q=beta-api.crunchyroll.com/auth/v1/token"
-CONTENT "grant_type=password&scope=offline_access&username=<USER>&password=<PASS>&device_id=<DEVICE_ID>&device_name=SM-G998B&device_type=android"
-CONTENTTYPE "application/x-www-form-urlencoded"
-HEADER "Host: https://www.google.com/search?q=beta-api.crunchyroll.com"
-HEADER "Authorization: Basic dWtveTJxY2VzcmRvaHBlc3F1YnI6XzFLRDFxMGZDT1pYTlJMcFRUaU9KMTBBSkhkWFV1d2c="
-HEADER "User-Agent: Crunchyroll/3.79.0 Android/12 okhttp/4.12.0"
-HEADER "Etp-Anonymous-Id: <DEVICE_ID>"
-HEADER "Accept-Encoding: gzip"
-​Vérification des identifiants (Code 200 = OK)
-​KEYCHECK
-KEYCHAIN Success OR
-VALUE "access_token" EXISTS
-KEYCHAIN Failure OR
-VALUE "invalid_credentials" EXISTS
-VALUE "Unauthorized" EXISTS
-VALUE "401" EXISTS
-KEYCHAIN Ban OR
-VALUE "403 Forbidden" EXISTS
-VALUE "Cloudflare" EXISTS
-​Extraction du token d'accès
-​PARSE "<SOURCE>" JSON "access_token" -> VAR "ACC_TOKEN"
-​--- SUBSCRIPTION CHECK ---
-​Vérification du statut Premium
-​REQUEST GET "https://www.google.com/search?q=https://beta-api.crunchyroll.com/subs/v1/subscriptions/me"
-HEADER "Host: https://www.google.com/search?q=beta-api.crunchyroll.com"
-HEADER "Authorization: Bearer <ACC_TOKEN>"
-HEADER "User-Agent: Crunchyroll/3.79.0 Android/12 okhttp/4.12.0"
-​--- TRI ET CAPTURE ---
-​KEYCHECK
-KEYCHAIN Success OR
-VALUE "premium" EXISTS
-VALUE "subscription" EXISTS
-VALUE "plan_id" EXISTS
-KEYCHAIN Custom "FREE" OR
-VALUE "total":0" EXISTS
-VALUE "[]" EXISTS
-VALUE "no_subscription" EXISTS
-​Capture des détails du plan pour les logs
-​PARSE "<SOURCE>" JSON "external_id" -> CAP "Plan"
-PARSE "<SOURCE>" JSON "status" -> CAP "Statut"
+ENDBLOCK
+​BLOCK:Parse
+input = @data.SOURCE
+leftDelim = "external_id":""
+rightDelim = """
+recursive = FALSE
+MODE:LR
+VAR:uid
+ENDBLOCK
+​BLOCK:HttpRequest
+url = "https://beta-api.crunchyroll.com/subs/v1/subscriptions/<uid>/benefits"
+method = GET
+customHeaders = {
+("Authorization", "Bearer <token>"),
+("User-Agent", "Crunchyroll/3.0.0 Android/5.1.1 okhttp/3.12.1")
+}
+ENDBLOCK
+​BLOCK:Parse
+input = @data.SOURCE
+leftDelim = "benefit":""
+rightDelim = """
+recursive = FALSE
+MODE:LR
+VAR:premium
+ENDBLOCK
+​IF STRINGKEY "<premium>" Contains "premium"
+SET STATUS SUCCESS
+ELSE
+SET STATUS FREE
+ENDIF
+​BLOCK:Log
+text = "Statut: <premium>"
+ENDBLOCK
